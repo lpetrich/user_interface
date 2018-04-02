@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>user_interface</name>
+  <version>0.2.0</version>
+  <description>user_interface provides a gui for assistive robotics.</description>
+  <maintainer email="llorrain@ualberta.ca">Laura Petrich</maintainer>
+
+  <license>BSD</license>
+  <author>Laura Petrich</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>geometry_msgs</depend>
+  <depend version_gte="0.2.19">python_qt_binding</depend>
+  <depend>python-rospkg</depend>
+  <depend>rostopic</depend>
+  <depend>rqt_gui</depend>
+  <depend>rqt_gui_py</depend>
+
+  <export>
+    <rqt_gui plugin="${prefix}/plugin.xml"/>
+  </export>
+</package>

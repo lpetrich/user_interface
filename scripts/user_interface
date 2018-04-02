@@ -1,0 +1,8 @@
+#!/usr/bin/env python
+
+import sys
+
+from rqt_gui.main import Main
+
+main = Main()
+sys.exit(main.main(sys.argv, standalone='user_interface.user_interface_plugin.UserInterfacePlugin'))
