@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-import rospy, cv2, re
+import rospy, cv2, re, sys
 import numpy as np
-from std_msgs.msg import String, UInt32
+from std_msgs.msg import String, UInt32, Bool
 from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge, CvBridgeError
 from python_qt_binding.QtCore import *
@@ -49,6 +49,7 @@ class UserInterfaceWidget(QWidget):
 		self.static = [False, False]
 		self.dynamic = [False, False]
 		self.draw = True
+		self.draw_vs = False
 		self.x_input = 1
 		self.y_input = 1
 		self.current_id = None
@@ -62,6 +63,10 @@ class UserInterfaceWidget(QWidget):
 		self.temp_cam1 = []
 		self.static_cam1 = []
 		self.dynamic_cam1 = []
+
+
+		self.corners = []
+		self.merged_list = []
 		# camera 2 variables
 		if self.stereo_vision:
 			self.m_vid2 = QLabel()
@@ -74,6 +79,8 @@ class UserInterfaceWidget(QWidget):
 			self.temp_cam2 = []
 			self.static_count_cam2 = 0
 			self.dynamic_count_cam2 = 0
+			self.corners2 = []
+			self.merged_list2 = []
 			self.directions_list = [['Click once in each image to set corresponding static points, then press confirm', 'Click once in each image to set corresponding dynamic points, then press confirm'], \
 						['Click two points in each image to set corresponding static lines, then press confirm', 'Click once in each image to set corresponding dynamic points, then press confirm'], \
 						['Click two points in each image to set corresponding static lines, then press confirm', 'Click two points in each image to set corresponding dynamic lines, then press confirm'], \
@@ -88,12 +95,14 @@ class UserInterfaceWidget(QWidget):
 	
 		# setup pens
 		self.pens = [QPen(Qt.green), QPen(Qt.blue), QPen(Qt.red), QPen(Qt.magenta), QPen(Qt.yellow), QPen(Qt.darkBlue), QPen(Qt.darkMagenta), QPen(Qt.cyan)]
+		self.line_pens = [QPen(Qt.green), QPen(Qt.blue), QPen(Qt.red), QPen(Qt.magenta), QPen(Qt.yellow), QPen(Qt.darkBlue), QPen(Qt.darkMagenta), QPen(Qt.cyan)]
 		for i in range(len(self.pens)):
+			self.line_pens[i].setWidth(2)
 			self.pens[i].setWidth(10)
 			self.pens[i].setCapStyle(Qt.RoundCap)
 			self.pens[i].setJoinStyle(Qt.RoundJoin)
-		self.pen_poly = QPen(Qt.cyan)
-		self.pen_poly.setWidth(2)
+		# self.pen_poly = QPen(Qt.cyan)
+		# self.pen_poly.setWidth(2)
 		# initialize and set layouts
 		self.main_layout = QVBoxLayout()
 		self.initialize_widgets()
@@ -109,6 +118,7 @@ class UserInterfaceWidget(QWidget):
 		self.pub_stereo = rospy.Publisher('/stereo_vision', UInt32, queue_size = 1)
 		self.pub_ids = rospy.Publisher('/task_ids', String, queue_size = 1)
 		self.pub_tasks_cam1 = rospy.Publisher('/cam1/task_coordinates', String, queue_size = 1)
+		self.pub_reset = rospy.Publisher('/reset', Bool, queue_size = 1)
 #############################################################################################################
 # VISUAL SERVOING WIDGET METHODS
 #############################################################################################################
@@ -135,20 +145,24 @@ class UserInterfaceWidget(QWidget):
 #############################################################################################################
 # REPEAT WIDGET METHODS
 #############################################################################################################
-	def publish_tasks(self):
+	# def publish_tasks(self, pub):
+	# 	self.tasks_cam1.append(self.temp_cam1)
+	# 	self.task_ids.append(self.current_id)
+	# 	self.total_num_tasks += 1
+	# 	if self.stereo_vision:
+	# 		self.tasks_cam2.append(self.temp_cam2)
+	# 	self.reset_all(False, 'vs')
+
+	def add_current_task(self, pub):
 		self.tasks_cam1.append(self.temp_cam1)
 		self.task_ids.append(self.current_id)
 		self.total_num_tasks += 1
 		if self.stereo_vision:
 			self.tasks_cam2.append(self.temp_cam2)
-		self.reset_all(False, 'vs')
-
-	def add_current_and_reset(self):
-		self.tasks_cam1.append(self.temp_cam1)
-		self.task_ids.append(self.current_id)
-		if self.stereo_vision:
-			self.tasks_cam2.append(self.temp_cam2)
-		self.reset_all(False, 'menu')
+		if pub:
+			self.reset_all(False, 'vs')
+		else:
+			self.reset_all(False, 'menu')
 
 	def reset_repeat_labels(self):
 		# Option Root
@@ -166,7 +180,7 @@ class UserInterfaceWidget(QWidget):
 			self.no_button.setText('back')
 		# Option 1 branch
 		elif self.repeat_text.text() == 'Please confirm you would like to set another task':
-			self.add_current_and_reset()
+			self.add_current_task(False)
 		# Option 2 branch
 		elif self.repeat_text.text() == 'Please select an option:':
 			self.repeat_text.setText('Please confirm you are ready to publish tasks')
@@ -174,7 +188,7 @@ class UserInterfaceWidget(QWidget):
 			self.no_button.setText('back')  
 		# Option 2 branch
 		elif self.repeat_text.text() == 'Please confirm you are ready to publish tasks':
-			self.publish_tasks()
+			self.add_current_task(True)
 		# Option 2 branch
 		elif self.repeat_text.text() == 'Would you like to cancel current task or all set tasks?':
 			self.repeat_text.setText('Please confirm cancellation of current task')
@@ -505,15 +519,17 @@ class UserInterfaceWidget(QWidget):
 # WIDGET CHANGE METHODS
 #############################################################################################################
 	def reset_all(self, all_tasks, current_widget):
-		self.draw = False
+		self.draw = True
 		self.reset_button_labels()
 		self.reset_repeat_labels()
 		if all_tasks:
+			self.draw_vs = False
 			self.tasks_cam1 = []
 			self.total_num_tasks = 0
 			self.task_ids = []
 			self.static_cam1 = []
 			self.dynamic_cam1 = []
+			self.pub_reset.publish(True)
 		self.temp_cam1 = []
 		self.static_total = 0
 		self.dynamic_total = 0
@@ -543,6 +559,7 @@ class UserInterfaceWidget(QWidget):
 		if self.current_widget == 'menu':
 			self.activate_widget(0)
 		elif self.current_widget == 'select':
+			self.pub_reset.publish(False)
 			self.activate_widget(1)
 			self.next_direction()
 		elif self.current_widget == 'repeat':
@@ -563,16 +580,15 @@ class UserInterfaceWidget(QWidget):
 #############################################################################################################
 # TASK PUBLISHING METHODS
 #############################################################################################################
-	def remap(self, X, current_widget):
+	def remap(self, X, mtf_output):
 		# f(x) = (x - input_start) / (input_end - input_start) * (output_end - output_start) + output_start
-		if current_widget == 0:
+		if not mtf_output:
 			x = int(float(X[0]) / self.x_input * 640)
 			y = int(float(X[1]) / self.y_input * 480)
-			return [x, y]
 		else:
 			x = float(X[0]) / 640 * self.x_input
 			y = float(X[1]) / 480 * self.y_input
-			return QPointF(x, y)		
+		return [x, y]		
 
 	def format_string(self, my_list):
 		msg = ''
@@ -580,55 +596,163 @@ class UserInterfaceWidget(QWidget):
 			inner_list = my_list[i]
 			for j in range(len(inner_list)):
 				c = inner_list[j]
-				c = self.remap(c, 0)
+				c = self.remap(c, False)
 				msg = msg + str(c[0]) + ' ' + str(c[1]) + ' '
 			msg = msg + '; '
 		return msg
 
+	def split_static_dynamic(self, my_list):
+		S = []
+		D = []
+		for i in range(len(self.task_ids)):
+			coords = my_list[i]
+			s = []
+			d = []
+			if self.task_ids[i] == 0:
+				# p2p -- 1 static, 1 dynamic
+				s.append(coords[0])
+				d.append(coords[1])
+			elif self.task_ids[i] == 1:
+				# p2l -- 2 static, 1 dynamic
+				s.append(coords[0])
+				s.append(coords[1])
+				d.append(coords[2])
+			elif self.task_ids[i] == 2:
+				# l2l -- 2 static, 2 dynamic  
+				s.append(coords[0])
+				s.append(coords[1])
+				d.append(coords[2])   
+				d.append(coords[3])   
+			elif self.task_ids[i] == 3:
+				# par -- 2 static, 2 dynamic
+				s.append(coords[0])
+				s.append(coords[1])
+				d.append(coords[2])   
+				d.append(coords[3]) 
+			elif self.task_ids[i] == 4:
+				# con -- 5 static, 3 dynamic
+				s.append(coords[0])
+				s.append(coords[1])
+				s.append(coords[2])
+				s.append(coords[3])
+				s.append(coords[4])
+				d.append(coords[5])   
+				d.append(coords[6])
+			S.append(s)
+			D.append(d)
+		return S, D
+
+	def merge_static_dynamic(self, static_list, dynamic_list):
+		C = []
+		M = []
+		ind = 0
+		for i in range(len(self.task_ids)):
+			ID = self.task_ids[i]
+			s = static_list[i]
+			m = []
+			c = []
+			if ID == 0:
+				m.append(s[0])
+				m.append(dynamic_list[ind][4])
+				c.append(dynamic_list[ind][0])
+				c.append(dynamic_list[ind][1])
+				c.append(dynamic_list[ind][2])
+				c.append(dynamic_list[ind][3])
+				ind += 1
+			elif ID == 1:
+				m.append(s[0])
+				m.append(s[1])
+				m.append(dynamic_list[ind][4])
+				c.append(dynamic_list[ind][0])
+				c.append(dynamic_list[ind][1])
+				c.append(dynamic_list[ind][2])
+				c.append(dynamic_list[ind][3])
+				ind += 1
+			elif ID == 2 or ID == 3:
+				m.append(s[0])
+				m.append(s[1])
+				m.append(dynamic_list[ind][4])
+				m.append(dynamic_list[ind + 1][4])
+				c.append(dynamic_list[ind][0])
+				c.append(dynamic_list[ind][1])
+				c.append(dynamic_list[ind][2])
+				c.append(dynamic_list[ind][3])
+				c.append(dynamic_list[ind + 1][0])
+				c.append(dynamic_list[ind + 1][1])
+				c.append(dynamic_list[ind + 1][2])
+				c.append(dynamic_list[ind + 1][3])
+				ind += 2
+			elif ID == 4:
+				m.append(s[0])
+				m.append(s[1])
+				m.append(s[2])
+				m.append(s[3])
+				m.append(s[4])
+				m.append(dynamic_list[ind][4])   
+				m.append(dynamic_list[ind + 1][4])
+				c.append(dynamic_list[ind][0])
+				c.append(dynamic_list[ind][1])
+				c.append(dynamic_list[ind][2])
+				c.append(dynamic_list[ind][3])
+				c.append(dynamic_list[ind + 1][0])
+				c.append(dynamic_list[ind + 1][1])
+				c.append(dynamic_list[ind + 1][2])
+				c.append(dynamic_list[ind + 1][3])
+				ind += 2
+			M.append(m)
+			C.append(c)
+		return M, C
+
 	def pub_check(self):
 		if self.publish_now:
-			tasks1 = self.format_string(self.tasks_cam1)
+			self.static_cam1, D = self.split_static_dynamic(self.tasks_cam1)
+			t1 = self.format_string(D)
 			if self.stereo_vision:
-				tasks2 = self.format_string(self.tasks_cam2)
-				self.pub_tasks_cam2.publish(tasks2)
-			self.pub_tasks_cam1.publish(tasks1)
+				self.static_cam2, self.dynamic_cam2 = self.split_static_dynamic(self.tasks_cam2)
+				t2 = self.format_string(self.dynamic_cam2)
+				self.pub_tasks_cam2.publish(t2)
+			self.pub_tasks_cam1.publish(t1)
 			ids = ''
 			for i in self.task_ids:
 				ids = ids + ' ' + str(i) + ' '
 			self.pub_calculate.publish(True)
 			self.pub_ids.publish(ids)
 			self.pub_stereo.publish(self.stereo_vision)
+			self.draw_vs = True
+			self.publish_now = False
 #############################################################################################################
 # DEBUGGING METHODS
 #############################################################################################################
 	def print_debugging(self):
-		print '\nDEBUGGING INFORMATION: '
-		print 'video label size', self.s_vid1.size()
+		print '********************************************************\nDEBUGGING INFORMATION: '
+		# print 'video label size', self.s_vid1.size()
 		# print '\nstereo vision: ',  self.stereo_vision
-		print 'total number tasks: ', self.total_num_tasks
-		print 'task ids', self.task_ids
+		print 'total_num_tasks: ', self.total_num_tasks
+		print 'task_ids: ', self.task_ids
 		# print 'current_widget: ', self.current_widget
-		print 'publish now: ', self.publish_now
-		print '\ncam1 tasks: ', self.tasks_cam1
-		print 'cam1 temp points: ', self.temp_cam1
-		print 'cam1 static num: ', self.static_count_cam1
-		print 'cam1 dynamic num: ', self.dynamic_count_cam1
-		print 'cam1 static total: ', self.static_total
-		print 'cam1 dynamic total: ', self.dynamic_total
-		print 'static: ', self.static
-		print 'dynamic: ', self.dynamic 
-		# if self.stereo_vision:   
-		# 	print '\ncam2 tasks: ', self.tasks_cam2
-		# 	print 'cam2 temp points: ', self.temp_cam2
-		# 	print 'cam2 static points: ', self.static_count
-		# 	print 'cam2 dynamic points: ', self.dynamic_count
-		print '\ncurrent id: ', self.current_id
+		# print 'publish now: ', self.publish_now
+		print '********************************************************\ntasks_cam1: ', self.tasks_cam1
+		print 'temp_cam1: ', self.temp_cam1
+		# print 'cam1 static num: ', self.static_count_cam1
+		# print 'cam1 dynamic num: ', self.dynamic_count_cam1
+		print 'static_cam1: ', self.static_cam1
+		print 'dynamic_cam1: ', self.dynamic_cam1
+		# print 'static: ', self.static
+		# print 'dynamic: ', self.dynamic 
+		if self.stereo_vision:   
+			print '********************************************************\ntasks_cam2: ', self.tasks_cam2
+			print 'temp_cam2: ', self.temp_cam2
+			print 'static_cam2: ', self.static_cam2
+			print 'dynamic_cam2: ', self.dynamic_cam2
+		# print '\ncurrent id: ', self.current_id
 		# print 'index: ', self.index
 		# print '\nrepeat text:', self.repeat_text.text()
 		# print 'yes button text:', self.yes_button.text()
 		# print 'no button text:', self.no_button.text()
 		# print 'input x: ', self.x_input
 		# print 'input y: ', self.y_input
+		print '********************************************************\n'
+
 #############################################################################################################
 # CALLBACK METHODS
 #############################################################################################################
@@ -663,136 +787,118 @@ class UserInterfaceWidget(QWidget):
 			print 'image callback error: invalid current_widget'
 
 	def callback_mtf1(self, data):
-		p = data.data.split()
-		if len(p) >= 10:
+		if self.draw_vs:
+			p = data.data.split()
 			self.dynamic_cam1 = []
-			for i in range(0, len(p), 10):
-				self.dynamic_cam1.append(self.remap([p[i], p[i + 1]], 1))
-				self.dynamic_cam1.append(self.remap([p[i + 2], p[i + 3]], 1))
-				self.dynamic_cam1.append(self.remap([p[i + 4], p[i + 5]], 1))
-				self.dynamic_cam1.append(self.remap([p[i + 6], p[i + 7]], 1))
-				self.dynamic_cam1.append(self.remap([p[i + 8], p[i + 9]], 1))
-			# print self.dynamic_cam1
+			for a in range(0, len(p), 10):
+				if (a + 9) < len(p):
+					d = []
+					d.append(self.remap([p[a], p[a + 1]], True))
+					d.append(self.remap([p[a + 2], p[a + 3]], True))
+					d.append(self.remap([p[a + 4], p[a + 5]], True))
+					d.append(self.remap([p[a + 6], p[a + 7]], True))
+					d.append(self.remap([p[a + 8], p[a + 9]], True))
+					self.dynamic_cam1.append(d)
+			self.merged_list, self.corners = self.merge_static_dynamic(self.static_cam1, self.dynamic_cam1)
 
 	def callback_mtf2(self, data):
-		p = data.data.split()
-		if len(p) >= 10:
+		if self.draw_vs:
+			p2 = data.data.split()
 			self.dynamic_cam2 = []
-			for i in range(0, len(p), 10):
-				self.dynamic_cam2.append(self.remap([p[i], p[i + 1]], 1))
-				self.dynamic_cam2.append(self.remap([p[i + 2], p[i + 3]], 1))
-				self.dynamic_cam2.append(self.remap([p[i + 4], p[i + 5]], 1))
-				self.dynamic_cam2.append(self.remap([p[i + 6], p[i + 7]], 1))
-				self.dynamic_cam2.append(self.remap([p[i + 8], p[i + 9]], 1))
+			for b in range(0, len(p2), 10):
+				if (b + 9) < len(p2):
+					d2 = []
+					d2.append(self.remap([p2[b], p2[b + 1]], True))
+					d2.append(self.remap([p2[b + 2], p2[b + 3]], True))
+					d2.append(self.remap([p2[b + 4], p2[b + 5]], True))
+					d2.append(self.remap([p2[b + 6], p2[b + 7]], True))
+					d2.append(self.remap([p2[b + 8], p2[b + 9]], True))
+					self.dynamic_cam2.append(d2)
+			self.merged_list2, self.corners2 = self.merge_static_dynamic(self.static_cam2, self.dynamic_cam2)
 #############################################################################################################
 # IMAGE METHODS
 #############################################################################################################
 	def painter1(self, pixmap):
 		painter = QPainter(pixmap)
-		painter.setPen(self.pens[0])
-		if not self.publish_now:
-			# paint while setting tasks
-			if self.current_id == 0:
-				self.paint_p2p(pixmap, painter, self.temp_cam1)
-			elif self.current_id == 1:
-				self.paint_p2l(pixmap, painter, self.temp_cam1)
-			elif self.current_id == 2:
-				self.paint_l2l(pixmap, painter, self.temp_cam1)     
-			elif self.current_id == 3:
-				self.paint_par(pixmap, painter, self.temp_cam1)
-			elif self.current_id == 4:
-				self.paint_con(pixmap, painter, self.temp_cam1)
-			for i in range(len(self.tasks_cam1)):
-				painter.setPen(self.pens[(i % 7) + 1])
-				task_id = self.task_ids[i]
-				if task_id == 0:
-					self.paint_p2p(pixmap, painter, self.tasks_cam1[i])
-				elif task_id == 1:
-					self.paint_p2l(pixmap, painter, self.tasks_cam1[i])
-				elif task_id == 2:
-					self.paint_l2l(pixmap, painter, self.tasks_cam1[i])     
-				elif task_id == 3:
-					self.paint_par(pixmap, painter, self.tasks_cam1[i])
-				elif task_id == 4:
-					self.paint_con(pixmap, painter, self.tasks_cam1[i])
-		else:
-			# paint during visual servoing
-			for p in self.static_cam1:
-				painter.drawPoint(p[0], p[1])
-			for q in range(0, len(self.dynamic_cam1), 5):
-				painter.setPen(self.pen_poly)
-				painter.drawPolygon(self.dynamic_cam1[q], self.dynamic_cam1[q + 1], self.dynamic_cam1[q + 2], self.dynamic_cam1[q + 3])
-				painter.setPen(self.pens[7])
-				painter.drawPoint(self.dynamic_cam1[q + 4])
+		if self.current_id != None:
+			self.check_ID(0, painter, self.current_id, self.temp_cam1)
+		for i in range(1, len(self.task_ids) + 1):
+			ID = self.task_ids[i - 1]
+			if not self.draw_vs:
+				self.check_ID(i, painter, ID, self.tasks_cam1[i - 1])
+			else:
+				if (i - 1) < len(self.merged_list):
+					self.check_ID(i, painter, ID, self.merged_list[i - 1])
+					# self.paint_poly(i, painter, self.corners[i - 1])
+
+	def check_ID(self, index, painter, ID, point_list):
+		if ID == 0:
+			self.paint_p2p(index, painter, point_list)
+		elif ID == 1:
+			self.paint_p2l(index, painter, point_list)
+		elif ID == 2:
+			self.paint_l2l(index, painter, point_list)     
+		elif ID == 3:
+			self.paint_par(index, painter, point_list)
+		elif ID == 4:
+			self.paint_con(index, painter, point_list)
 
 	def painter2(self, pixmap2):
 		painter2 = QPainter(pixmap2)
-		painter2.setPen(self.pens[0])
-		if not self.publish_now:
-			# paint while setting tasks
-			if self.current_id == 0:
-				self.paint_p2p(pixmap2, painter2, self.temp_cam2)
-			elif self.current_id == 1:
-				self.paint_p2l(pixmap2, painter2, self.temp_cam2)
-			elif self.current_id == 2:
-				self.paint_l2l(pixmap2, painter2, self.temp_cam2)       
-			elif self.current_id == 3:
-				self.paint_par(pixmap2, painter2, self.temp_cam2)
-			elif self.current_id == 4:
-				self.paint_con(pixmap2, painter2, self.temp_cam2)
-			for i in range(len(self.tasks_cam2)):
-				painter2.setPen(self.pens[(i % 7) + 1])
-				task_id = self.task_ids[i]
-				if task_id == 0:
-					self.paint_p2p(pixmap2, painter2, self.tasks_cam2[i])
-				elif task_id == 1:
-					self.paint_p2l(pixmap2, painter2, self.tasks_cam2[i])
-				elif task_id == 2:
-					self.paint_l2l(pixmap2, painter2, self.tasks_cam2[i])       
-				elif task_id == 3:
-					self.paint_par(pixmap2, painter2, self.tasks_cam2[i])
-				elif task_id == 4:
-					self.paint_con(pixmap2, painter2, self.tasks_cam2[i])
-		else:
-			# paint during visual servoing
-			for p in self.static_cam2:
-				painter2.drawPoint(p[0], p[1])
-			painter2.setPen(self.pens[1])
-			for q in range(0, len(self.dynamic_cam2), 5):
-				painter2.setPen(self.pen_poly)
-				painter2.drawPolygon(self.dynamic_cam2[q], self.dynamic_cam2[q + 1], self.dynamic_cam2[q + 2], self.dynamic_cam2[q + 3])
-				painter2.setPen(self.pens[7])
-				painter2.drawPoint(self.dynamic_cam2[q + 4])			
+		if self.current_id != None:
+			self.check_ID(0, painter2, self.current_id, self.temp_cam2)
+		for i in range(1, len(self.task_ids) + 1):
+			ID = self.task_ids[i - 1]
+			if not self.draw_vs:
+				self.check_ID(i, painter2, ID, self.tasks_cam2[i - 1])
+			else:
+				if (i - 1) < len(self.merged_list2):
+					self.check_ID(i, painter2, ID, self.merged_list2[i - 1])
+					# self.paint_poly(i, painter2, self.corners2[i - 1])
 
-	def paint_p2p(self, pixmap, painter, pt_list):
+	def paint_p2p(self, index, painter, pt_list):
+		painter.setPen(self.pens[index])
 		for p in pt_list:
 			painter.drawPoint(p[0], p[1])
 
-	def paint_p2l(self, pixmap, painter, pt_list):
+	def paint_p2l(self, index, painter, pt_list):
 		for p in pt_list:
+			painter.setPen(self.pens[index])
 			painter.drawPoint(p[0], p[1])
 		if len(pt_list) == 3:
+			painter.setPen(self.line_pens[index])
 			painter.drawLine(pt_list[0][0], pt_list[0][1], pt_list[1][0], pt_list[1][1])
 
-	def paint_l2l(self, pixmap, painter, pt_list):
+	def paint_l2l(self, index, painter, pt_list):
 		for p in pt_list:
+			painter.setPen(self.pens[index])
 			painter.drawPoint(p[0], p[1])
 		if len(pt_list) == 4:
+			painter.setPen(self.line_pens[index])
 			painter.drawLine(pt_list[0][0], pt_list[0][1], pt_list[1][0], pt_list[1][1])
 			painter.drawLine(pt_list[2][0], pt_list[2][1], pt_list[3][0], pt_list[3][1])
 
-	def paint_par(self, pixmap, painter, pt_list):
+	def paint_par(self, index, painter, pt_list):
 		for p in pt_list:
+			painter.setPen(self.pens[index])
 			painter.drawPoint(p[0], p[1])
 		if len(pt_list) == 4:
+			painter.setPen(self.line_pens[index])
 			painter.drawLine(pt_list[0][0], pt_list[0][1], pt_list[1][0], pt_list[1][1])
 			painter.drawLine(pt_list[2][0], pt_list[2][1], pt_list[3][0], pt_list[3][1])        
 
-	def paint_con(self, pixmap, painter, pt_list):
+	def paint_con(self, index, painter, pt_list):
 		for p in pt_list:
+			painter.setPen(self.pens[index])
 			painter.drawPoint(p[0], p[1])
 		if len(pt_list) == 5:
 			return
+
+	def paint_poly(self, index, painter, c):
+		painter.setPen(self.line_pens[index])
+		for i in range(0, len(c), 4):
+			if (i + 3) < len(c):
+				painter.drawPolygon(QPointF(c[i][0], c[i][1]), QPointF(c[i+1][0], c[i+1][1]), QPointF(c[i+2][0], c[i+2][1]), QPointF(c[i+3][0], c[i+3][1]))
 
 	def convert_img(self, data):
 		try:
@@ -818,15 +924,12 @@ class UserInterfaceWidget(QWidget):
 	def mousePressEventCam1(self, event):
 		if not self.static[0] and self.static_count_cam1 < self.static_total:
 			pos = self.s_vid1.mapFromGlobal(event.globalPos())
-			print 'static cam1: ', pos
 			self.temp_cam1.append([pos.x(), pos.y()])
 			self.static_count_cam1 += 1
-			self.static_cam1.append([pos.x(), pos.y()])
 		elif self.static[0] and not self.dynamic[0] and self.dynamic_count_cam1 < self.dynamic_total:
 			if self.stereo_vision and not self.static[1]:
 				return
 			pos = self.s_vid1.mapFromGlobal(event.globalPos())
-			print 'dynamic cam1: ', pos
 			self.temp_cam1.append([pos.x(), pos.y()])
 			self.dynamic_count_cam1 += 1
 
@@ -835,7 +938,6 @@ class UserInterfaceWidget(QWidget):
 			pos = self.s_vid2.mapFromGlobal(event.globalPos())
 			self.temp_cam2.append([pos.x(), pos.y()])
 			self.static_count_cam2 += 1
-			self.static_cam2.append([pos.x(), pos.y()])
 		elif self.static[1] and not self.dynamic[1] and self.dynamic_count_cam2 < self.dynamic_total:
 			if self.stereo_vision and not self.static[0]:
 				return
@@ -854,8 +956,10 @@ class UserInterfaceWidget(QWidget):
 		key = QKeyEvent.key()
 		if int(key) == 82:
 			self.reset_all(True, 'menu')
-		if int(key) == 68:
+		elif int(key) == 68:
 			self.print_debugging()
+		elif int(key) == 81:
+			sys.exit()
 
 	def save_settings(self, plugin_settings, instance_settings):
 		pass
