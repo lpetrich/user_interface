@@ -7,7 +7,7 @@
 
     <group ns="cam1">
         <node pkg="usb_cam" type="usb_cam_node" name="camera">
-            <param name="video_device" value="/dev/video0" />
+            <param name="video_device" value="/dev/video1" />
             <param name="framerate" value="15" />
         </node>
         <node name="trackers" pkg="mtf_bridge" type="interface_tracker_node" output="screen"> 
@@ -24,7 +24,7 @@
 
     <group ns="cam2">
         <node pkg="usb_cam" type="usb_cam_node" name="camera">
-            <param name="video_device" value="/dev/video1" />
+            <param name="video_device" value="/dev/video2" />
             <param name="framerate" value="15" />
         </node>
         <node name="trackers" pkg="mtf_bridge" type="interface_tracker_node" output="screen"> 

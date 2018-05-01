@@ -19,11 +19,12 @@ class UserInterfaceWidget(QWidget):
 		# check if stereo vision should be enabled
 		T = rospy.get_published_topics()
 		text = ''.join(str(r) for t in T for r in t)
-		if re.match('.*?(cam2).*?', text) != None:
-			print 'WIDGET: stereo vision initialized'
+		if re.match('.*?(cam2/camera).*?', text) != None:
+			# print 'WIDGET: stereo vision initialized'
 			self.stereo_vision = True
 		else:
 			self.stereo_vision = False
+		print "stereo vision: ", self.stereo_vision
 		# widget variables
 		self.m_vid1 = QLabel()
 		self.s_vid1 = QLabel()
@@ -45,7 +46,7 @@ class UserInterfaceWidget(QWidget):
 		self.total_num_tasks = 0
 		self.task_ids = []
 		self.current_widget = 'menu'
-		self.publish_now = False
+		self.publish_new_tasks_now = False
 		self.static = [False, False]
 		self.dynamic = [False, False]
 		self.draw = True
@@ -63,7 +64,6 @@ class UserInterfaceWidget(QWidget):
 		self.temp_cam1 = []
 		self.static_cam1 = []
 		self.dynamic_cam1 = []
-
 
 		self.corners = []
 		self.merged_list = []
@@ -101,8 +101,6 @@ class UserInterfaceWidget(QWidget):
 			self.pens[i].setWidth(10)
 			self.pens[i].setCapStyle(Qt.RoundCap)
 			self.pens[i].setJoinStyle(Qt.RoundJoin)
-		# self.pen_poly = QPen(Qt.cyan)
-		# self.pen_poly.setWidth(2)
 		# initialize and set layouts
 		self.main_layout = QVBoxLayout()
 		self.initialize_widgets()
@@ -110,17 +108,36 @@ class UserInterfaceWidget(QWidget):
 		# setup publishers and subscribers 
 		self.sub_cam1 = rospy.Subscriber('/cam1/camera/image_raw/compressed',  CompressedImage, self.callback_cam1, queue_size = 3)
 		self.sub_mtf = rospy.Subscriber('/cam1/trackers/patch_tracker', String, self.callback_mtf1, queue_size = 3)
+		self.sub_reset = rospy.Subscriber('/error_reset', Bool, self.callback_reset, queue_size = 3)
 		if self.stereo_vision:
 			self.sub_cam2 = rospy.Subscriber('/cam2/camera/image_raw/compressed',  CompressedImage, self.callback_cam2, queue_size = 3)
 			self.sub_mtf2 = rospy.Subscriber('/cam2/trackers/patch_tracker', String, self.callback_mtf2, queue_size = 3)
 			self.pub_tasks_cam2 = rospy.Publisher('/cam2/task_coordinates', String, queue_size = 1)
+			self.pub_centers_cam2 = rospy.Publisher('/cam2/centers', String, queue_size = 1)
 		self.pub_calculate = rospy.Publisher('/calculate', UInt32, queue_size = 1)
 		self.pub_stereo = rospy.Publisher('/stereo_vision', UInt32, queue_size = 1)
 		self.pub_ids = rospy.Publisher('/task_ids', String, queue_size = 1)
 		self.pub_tasks_cam1 = rospy.Publisher('/cam1/task_coordinates', String, queue_size = 1)
+		self.pub_centers_cam1 = rospy.Publisher('/cam1/centers', String, queue_size = 1)
 		self.pub_reset = rospy.Publisher('/reset', Bool, queue_size = 1)
 #############################################################################################################
-# VISUAL SERVOING WIDGET METHODS
+# LOST TRACKER RESET WIDGET 
+#############################################################################################################
+	def reset_clicked(self):
+		self.reset_all(True, 'menu')
+		
+	def reset_layout(self):
+		layout = QHBoxLayout()
+		text_layout = QVBoxLayout()
+		reset_button = QPushButton('One or more trackers were lost.\nPress to reset.')
+		reset_button.clicked.connect(self.reset_clicked)
+		reset_button.setStyleSheet("background-color: rgba(16, 123, 227, 90%); selection-background-color: rgba(16, 123, 227, 50%); font-size: 32px")
+		reset_button.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+		text_layout.addWidget(reset_button)
+		layout.addLayout(text_layout)        
+		return layout
+#############################################################################################################
+# VISUAL SERVOING WIDGET 
 #############################################################################################################
 	def pause_vs(self):
 		if self.pause_button.text() == 'pause':
@@ -143,7 +160,7 @@ class UserInterfaceWidget(QWidget):
 		# layout.addWidget(self.pause_button)
 		return layout
 #############################################################################################################
-# REPEAT WIDGET METHODS
+# REPEAT WIDGET 
 #############################################################################################################
 	# def publish_tasks(self, pub):
 	# 	self.tasks_cam1.append(self.temp_cam1)
@@ -275,7 +292,7 @@ class UserInterfaceWidget(QWidget):
 		layout.addLayout(text_layout)        
 		return layout
 #############################################################################################################
-# SELECT WIDGET METHODS
+# SELECT WIDGET 
 #############################################################################################################
 	def reset_points(self):
 		self.index = 0
@@ -381,7 +398,7 @@ class UserInterfaceWidget(QWidget):
 		layout.addLayout(text_layout)        
 		return layout
 #############################################################################################################
-# MENU WIDGET METHODS
+# MENU WIDGET 
 #############################################################################################################
 	def point_to_point(self):
 		if self.p2p_button.text() == 'point to point':
@@ -504,16 +521,19 @@ class UserInterfaceWidget(QWidget):
 		self.select_widget = QWidget()
 		self.repeat_widget = QWidget()
 		self.vs_widget = QWidget()
+		self.reset_widget = QWidget()
 
 		self.menu_widget.setLayout(self.menu_layout())
 		self.select_widget.setLayout(self.select_layout())
 		self.repeat_widget.setLayout(self.repeat_layout())
 		self.vs_widget.setLayout(self.vs_layout())
+		self.reset_widget.setLayout(self.reset_layout())
 
 		self.stacked_widget.addWidget(self.menu_widget)
 		self.stacked_widget.addWidget(self.select_widget)
 		self.stacked_widget.addWidget(self.repeat_widget)
 		self.stacked_widget.addWidget(self.vs_widget)
+		self.stacked_widget.addWidget(self.reset_widget)
 		self.main_layout.addWidget(self.stacked_widget)
 #############################################################################################################
 # WIDGET CHANGE METHODS
@@ -530,6 +550,7 @@ class UserInterfaceWidget(QWidget):
 			self.static_cam1 = []
 			self.dynamic_cam1 = []
 			self.pub_reset.publish(True)
+			self.pub_calculate.publish(False)
 		self.temp_cam1 = []
 		self.static_total = 0
 		self.dynamic_total = 0
@@ -547,7 +568,7 @@ class UserInterfaceWidget(QWidget):
 			self.dynamic_count_cam2 = 0      
 		self.current_id = None
 		self.index = 0
-		self.publish_now = False
+		self.publish_new_tasks_now = False
 		self.update_current_widget(current_widget)
 
 	def activate_widget(self, index):
@@ -566,7 +587,9 @@ class UserInterfaceWidget(QWidget):
 			self.activate_widget(2)
 		elif self.current_widget == 'vs':
 			self.activate_widget(3)
-			self.publish_now = True
+			self.publish_new_tasks_now = True
+		elif self.current_widget == 'reset':
+			self.activate_widget(4)
 		else:
 			print 'change widget error'
 		self.draw = True
@@ -578,7 +601,7 @@ class UserInterfaceWidget(QWidget):
 		self.reset_button_labels()
 		self.change_widget()
 #############################################################################################################
-# TASK PUBLISHING METHODS
+# PUBLISHING METHODS
 #############################################################################################################
 	def remap(self, X, mtf_output):
 		# f(x) = (x - input_start) / (input_end - input_start) * (output_end - output_start) + output_start
@@ -643,44 +666,26 @@ class UserInterfaceWidget(QWidget):
 		return S, D
 
 	def merge_static_dynamic(self, static_list, dynamic_list):
-		C = []
 		M = []
 		ind = 0
 		for i in range(len(self.task_ids)):
 			ID = self.task_ids[i]
 			s = static_list[i]
 			m = []
-			c = []
 			if ID == 0:
 				m.append(s[0])
-				m.append(dynamic_list[ind][4])
-				c.append(dynamic_list[ind][0])
-				c.append(dynamic_list[ind][1])
-				c.append(dynamic_list[ind][2])
-				c.append(dynamic_list[ind][3])
+				m.append(dynamic_list[ind])
 				ind += 1
 			elif ID == 1:
 				m.append(s[0])
 				m.append(s[1])
-				m.append(dynamic_list[ind][4])
-				c.append(dynamic_list[ind][0])
-				c.append(dynamic_list[ind][1])
-				c.append(dynamic_list[ind][2])
-				c.append(dynamic_list[ind][3])
+				m.append(dynamic_list[ind])
 				ind += 1
 			elif ID == 2 or ID == 3:
 				m.append(s[0])
 				m.append(s[1])
-				m.append(dynamic_list[ind][4])
-				m.append(dynamic_list[ind + 1][4])
-				c.append(dynamic_list[ind][0])
-				c.append(dynamic_list[ind][1])
-				c.append(dynamic_list[ind][2])
-				c.append(dynamic_list[ind][3])
-				c.append(dynamic_list[ind + 1][0])
-				c.append(dynamic_list[ind + 1][1])
-				c.append(dynamic_list[ind + 1][2])
-				c.append(dynamic_list[ind + 1][3])
+				m.append(dynamic_list[ind])
+				m.append(dynamic_list[ind + 1])
 				ind += 2
 			elif ID == 4:
 				m.append(s[0])
@@ -688,23 +693,15 @@ class UserInterfaceWidget(QWidget):
 				m.append(s[2])
 				m.append(s[3])
 				m.append(s[4])
-				m.append(dynamic_list[ind][4])   
-				m.append(dynamic_list[ind + 1][4])
-				c.append(dynamic_list[ind][0])
-				c.append(dynamic_list[ind][1])
-				c.append(dynamic_list[ind][2])
-				c.append(dynamic_list[ind][3])
-				c.append(dynamic_list[ind + 1][0])
-				c.append(dynamic_list[ind + 1][1])
-				c.append(dynamic_list[ind + 1][2])
-				c.append(dynamic_list[ind + 1][3])
+				m.append(dynamic_list[ind])   
+				m.append(dynamic_list[ind + 1])
 				ind += 2
 			M.append(m)
-			C.append(c)
-		return M, C
+		return M
 
 	def pub_check(self):
-		if self.publish_now:
+		# self.pub_stereo.publish(self.stereo_vision)
+		if self.publish_new_tasks_now:
 			self.static_cam1, D = self.split_static_dynamic(self.tasks_cam1)
 			t1 = self.format_string(D)
 			if self.stereo_vision:
@@ -715,11 +712,17 @@ class UserInterfaceWidget(QWidget):
 			ids = ''
 			for i in self.task_ids:
 				ids = ids + ' ' + str(i) + ' '
-			self.pub_calculate.publish(True)
 			self.pub_ids.publish(ids)
 			self.pub_stereo.publish(self.stereo_vision)
+			self.pub_calculate.publish(True)
 			self.draw_vs = True
-			self.publish_now = False
+			self.publish_new_tasks_now = False
+		if self.draw_vs:
+			s1 = self.format_string(self.merged_list)
+			if self.stereo_vision:
+				s2 = self.format_string(self.merged_list2)
+				self.pub_centers_cam2.publish(s2)
+			self.pub_centers_cam1.publish(s1)
 #############################################################################################################
 # DEBUGGING METHODS
 #############################################################################################################
@@ -730,7 +733,7 @@ class UserInterfaceWidget(QWidget):
 		print 'total_num_tasks: ', self.total_num_tasks
 		print 'task_ids: ', self.task_ids
 		# print 'current_widget: ', self.current_widget
-		# print 'publish now: ', self.publish_now
+		# print 'publish now: ', self.publish_new_tasks_now
 		print '********************************************************\ntasks_cam1: ', self.tasks_cam1
 		print 'temp_cam1: ', self.temp_cam1
 		# print 'cam1 static num: ', self.static_count_cam1
@@ -756,65 +759,61 @@ class UserInterfaceWidget(QWidget):
 #############################################################################################################
 # CALLBACK METHODS
 #############################################################################################################
+	def callback_reset(self, data):
+		reset = data.data
+		print 'reset callback: ', reset
+		if reset:
+			self.update_current_widget('reset')
+
+
 	def callback_cam1(self, data):
-		self.pixmap = self.convert_compressed_img(data)
-		if self.draw:
-			self.painter1(self.pixmap)
-		if self.current_widget == 'menu':
-			self.m_vid1.setPixmap(self.pixmap)
-		elif self.current_widget == 'select':
-			self.s_vid1.setPixmap(self.pixmap)
-		elif self.current_widget == 'repeat':
-			self.r_vid1.setPixmap(self.pixmap)        
-		elif self.current_widget == 'vs':
-			self.v_vid1.setPixmap(self.pixmap)
-		else:
-			print 'image callback error: invalid current_widget'
+		if self.current_widget != 'reset':
+			self.pixmap = self.convert_compressed_img(data)
+			if self.draw:
+				self.painter1(self.pixmap)
+			if self.current_widget == 'menu':
+				self.m_vid1.setPixmap(self.pixmap)
+			elif self.current_widget == 'select':
+				self.s_vid1.setPixmap(self.pixmap)
+			elif self.current_widget == 'repeat':
+				self.r_vid1.setPixmap(self.pixmap)        
+			elif self.current_widget == 'vs':
+				self.v_vid1.setPixmap(self.pixmap)
+			else:
+				print 'image callback error: invalid current_widget'
 
 	def callback_cam2(self, data):
-		pixmap2 = self.convert_compressed_img(data)
-		if self.draw:
-			self.painter2(pixmap2)
-		if self.current_widget == 'menu':
-			self.m_vid2.setPixmap(pixmap2)
-		elif self.current_widget == 'select':
-			self.s_vid2.setPixmap(pixmap2)
-		elif self.current_widget == 'repeat':
-			self.r_vid2.setPixmap(pixmap2)
-		elif self.current_widget == 'vs':
-			self.v_vid2.setPixmap(pixmap2)
-		else:
-			print 'image callback error: invalid current_widget'
+		if self.current_widget != 'reset':
+			pixmap2 = self.convert_compressed_img(data)
+			if self.draw:
+				self.painter2(pixmap2)
+			if self.current_widget == 'menu':
+				self.m_vid2.setPixmap(pixmap2)
+			elif self.current_widget == 'select':
+				self.s_vid2.setPixmap(pixmap2)
+			elif self.current_widget == 'repeat':
+				self.r_vid2.setPixmap(pixmap2)
+			elif self.current_widget == 'vs':
+				self.v_vid2.setPixmap(pixmap2)
+			else:
+				print 'image callback error: invalid current_widget'
 
 	def callback_mtf1(self, data):
 		if self.draw_vs:
 			p = data.data.split()
 			self.dynamic_cam1 = []
-			for a in range(0, len(p), 10):
-				if (a + 9) < len(p):
-					d = []
-					d.append(self.remap([p[a], p[a + 1]], True))
-					d.append(self.remap([p[a + 2], p[a + 3]], True))
-					d.append(self.remap([p[a + 4], p[a + 5]], True))
-					d.append(self.remap([p[a + 6], p[a + 7]], True))
-					d.append(self.remap([p[a + 8], p[a + 9]], True))
-					self.dynamic_cam1.append(d)
-			self.merged_list, self.corners = self.merge_static_dynamic(self.static_cam1, self.dynamic_cam1)
+			for a in range(0, len(p), 2):
+				self.dynamic_cam1.append(self.remap([p[a], p[a + 1]], True))
+			self.merged_list = self.merge_static_dynamic(self.static_cam1, self.dynamic_cam1)
 
 	def callback_mtf2(self, data):
 		if self.draw_vs:
 			p2 = data.data.split()
 			self.dynamic_cam2 = []
-			for b in range(0, len(p2), 10):
-				if (b + 9) < len(p2):
-					d2 = []
-					d2.append(self.remap([p2[b], p2[b + 1]], True))
-					d2.append(self.remap([p2[b + 2], p2[b + 3]], True))
-					d2.append(self.remap([p2[b + 4], p2[b + 5]], True))
-					d2.append(self.remap([p2[b + 6], p2[b + 7]], True))
-					d2.append(self.remap([p2[b + 8], p2[b + 9]], True))
-					self.dynamic_cam2.append(d2)
-			self.merged_list2, self.corners2 = self.merge_static_dynamic(self.static_cam2, self.dynamic_cam2)
+			for a2 in range(0, len(p2), 2):
+				self.dynamic_cam2.append(self.remap([p2[a2], p2[a2 + 1]], True))
+			self.merged_list2 = self.merge_static_dynamic(self.static_cam2, self.dynamic_cam2)
+
 #############################################################################################################
 # IMAGE METHODS
 #############################################################################################################
