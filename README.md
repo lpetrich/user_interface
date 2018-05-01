@@ -1,4 +1,4 @@
-# ROS QT Intuitive User Interface Package for Assistive Robotics
+# ROS QT User Interface Package for Assistive Robotics
 
 ## Introduction
 
@@ -12,13 +12,13 @@
 * [Eigen](http://eigen.tuxfamily.org/index.php?title=Main_Page) 
 	- version 3.2.10 used
 
-## Additional Required ROS Packages:
+## Required ROS Packages:
 * [mtf_bridge](https://github.com/lpetrich/mtf_bridge)
 * [geometric_error](https://github.com/lpetrich/geometric_error)
 
-## To Use
+## Usage:
 ```bash
-# Steps to create a new catkin workspace and install packages:
+# Steps to create a new catkin workspace and install packages
 source /opt/ros/indigo/setup.bash
 mkdir -p catkin_ws/src
 cd catkin_ws
@@ -31,13 +31,11 @@ cd ..
 catkin_make
 # To use in a preexisting workspace, cd to the src folder and follow the last 5 steps
 
-# To run program with roscore already running:
-source catkin_ws/devel/setup.bash
+# To run, use one of the following commands
 roslaunch user_interface single.launch
-# Or for stereo vision:
 roslaunch user_interface stereo.launch
 
 ```
 
-## Report
+## Additional Resources:
 [Website](https://sites.google.com/ualberta.ca/49918-lpetrich/home)
