@@ -3,7 +3,7 @@
     Assistive Robotic Interface for Stereo Vision
 -->
 
-<launch>    
+<launch>  
 
     <group ns="cam1">
         <node pkg="usb_cam" type="usb_cam_node" name="camera">
@@ -38,10 +38,9 @@
             <remap from="/camera/image_raw" to="/cam2/camera/image_raw"/>
         </node>
     </group> 
-
+    
     <node pkg="user_interface" type="user_interface" name="user_interface" output="screen"/>  
-<!--
-    <node pkg="geometric_error" type="error_control" name="error_control"/> 
-    <node pkg="error_calculation" type="error_grouper.py" name="error_grouper"/>
--->
+    <node pkg="geometric_error" type="error_control" name="error_control" output="screen"/> 
+    <node pkg="geometric_error" type="error_grouper.py" name="error_grouper" output="screen"/>
+
 </launch>

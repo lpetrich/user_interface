@@ -20,11 +20,11 @@ class UserInterfaceWidget(QWidget):
 		T = rospy.get_published_topics()
 		text = ''.join(str(r) for t in T for r in t)
 		if re.match('.*?(cam2/camera).*?', text) != None:
-			# print 'WIDGET: stereo vision initialized'
 			self.stereo_vision = True
+			print "User Interface: Two cameras found."
 		else:
 			self.stereo_vision = False
-		print "stereo vision: ", self.stereo_vision
+			print "User Interface: One camera found."
 		# widget variables
 		self.m_vid1 = QLabel()
 		self.s_vid1 = QLabel()
@@ -218,7 +218,7 @@ class UserInterfaceWidget(QWidget):
 		elif self.repeat_text.text() == 'Please confirm cancellation of all tasks':
 			self.reset_all(True, 'menu')
 		else:
-			print 'ERROR YES: Must have missed an edge case\n'
+			print 'User Interface: Must have missed an edge case\n'
 			print 'text:', self.repeat_text.text()
 			print 'yes:', self.yes_button.text()
 			print 'no:', self.no_button.text()
@@ -252,7 +252,7 @@ class UserInterfaceWidget(QWidget):
 		elif self.repeat_text.text() == 'Please confirm you would like to set another task':
 			self.reset_repeat_labels()
 		else:
-			print 'ERROR NO: Must have missed an edge case\n'
+			print 'User Interface: Must have missed an edge case\n'
 			print 'text:', self.repeat_text.text()
 			print 'yes:', self.yes_button.text()
 			print 'no:', self.no_button.text()
@@ -341,9 +341,9 @@ class UserInterfaceWidget(QWidget):
 				elif self.dynamic[0] and self.dynamic[1]:
 					self.update_current_widget('repeat')
 				else:
-					print 'next direction: edge case 1'
+					print 'User Interface: next direction --edge case 1'
 			else:
-				print 'next direction: edge case 2'
+				print 'User Interface: next direction -- edge case 2'
 		else:
 			if not self.static[0]:
 				self.directions.setStyleSheet("font-size: 32px; font: bold")
@@ -357,7 +357,7 @@ class UserInterfaceWidget(QWidget):
 				else:
 					self.update_current_widget('repeat')
 			else:
-				print 'next direction: edge case 3'            
+				print 'User Interface: next direction -- edge case 3'            
 
 	def select_layout(self):
 		if self.stereo_vision:
@@ -591,7 +591,7 @@ class UserInterfaceWidget(QWidget):
 		elif self.current_widget == 'reset':
 			self.activate_widget(4)
 		else:
-			print 'change widget error'
+			print 'User Interface: Change widget error'
 		self.draw = True
 
 	def update_current_widget(self, current_widget):
@@ -619,7 +619,7 @@ class UserInterfaceWidget(QWidget):
 			inner_list = my_list[i]
 			for j in range(len(inner_list)):
 				c = inner_list[j]
-				c = self.remap(c, False)
+				# c = self.remap(c, False)
 				msg = msg + str(c[0]) + ' ' + str(c[1]) + ' '
 			msg = msg + '; '
 		return msg
@@ -761,8 +761,8 @@ class UserInterfaceWidget(QWidget):
 #############################################################################################################
 	def callback_reset(self, data):
 		reset = data.data
-		print 'reset callback: ', reset
 		if reset:
+			print 'User Interface: Tracker lost, resetting.'
 			self.update_current_widget('reset')
 
 
@@ -780,7 +780,7 @@ class UserInterfaceWidget(QWidget):
 			elif self.current_widget == 'vs':
 				self.v_vid1.setPixmap(self.pixmap)
 			else:
-				print 'image callback error: invalid current_widget'
+				print 'User Interface: image callback error -- invalid current_widget'
 
 	def callback_cam2(self, data):
 		if self.current_widget != 'reset':
@@ -796,7 +796,7 @@ class UserInterfaceWidget(QWidget):
 			elif self.current_widget == 'vs':
 				self.v_vid2.setPixmap(pixmap2)
 			else:
-				print 'image callback error: invalid current_widget'
+				print 'User Interface: image callback error -- invalid current_widget'
 
 	def callback_mtf1(self, data):
 		if self.draw_vs:
@@ -906,7 +906,7 @@ class UserInterfaceWidget(QWidget):
 			print(e)
 		image = QImage(frame, frame.shape[1], frame.shape[0], frame.strides[0], QImage.Format_RGB888)
 		pixmap = QPixmap.fromImage(image)
-		pixmap = pixmap.scaledToHeight(self.s_vid1.size().height())   
+		# pixmap = pixmap.scaledToHeight(self.s_vid1.size().height())   
 		return pixmap
 
 	def convert_compressed_img(self, data):
@@ -915,7 +915,7 @@ class UserInterfaceWidget(QWidget):
 		frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 		image = QImage(frame, frame.shape[1], frame.shape[0], frame.strides[0], QImage.Format_RGB888)
 		pixmap = QPixmap.fromImage(image)
-		pixmap = pixmap.scaledToHeight(self.s_vid1.size().height())
+		# pixmap = pixmap.scaledToHeight(self.s_vid1.size().height())
 		return pixmap
 #############################################################################################################
 # EVENT METHODS

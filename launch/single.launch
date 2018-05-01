@@ -7,7 +7,7 @@
 
     <group ns="cam1">
         <node pkg="usb_cam" type="usb_cam_node" name="camera">
-            <param name="video_device" value="/dev/video0" />
+            <param name="video_device" value="/dev/video1" />
             <param name="framerate" value="15" />
         </node>
         <node name="trackers" pkg="mtf_bridge" type="interface_tracker_node" output="screen"> 
@@ -21,8 +21,9 @@
             <remap from="/camera/image_raw" to="/cam1/camera/image_raw"/>
         </node>
     </group> 
-
+    
     <node pkg="user_interface" type="user_interface" name="user_interface" output="screen"/> 
-    <node pkg="geometric_error" type="error_control" name="error_control"/> 
-    <node pkg="geometric_error" type="error_grouper.py" name="error_grouper"/>
+    <node pkg="geometric_error" type="error_control" name="error_control" output="screen"/> 
+    <node pkg="geometric_error" type="error_grouper.py" name="error_grouper" output="screen"/>
+
 </launch>
