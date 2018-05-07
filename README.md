@@ -40,5 +40,6 @@ roslaunch user_interface stereo.launch
 ```
 
 ## Additional Resources:
-[Website](https://sites.google.com/ualberta.ca/49918-lpetrich/home)
-[Report](https://github.com/lpetrich/user_interface/blob/master/ProjectReport499W18.pdf)
+* [Website](https://sites.google.com/ualberta.ca/49918-lpetrich/home)
+
+* [Report](https://github.com/lpetrich/user_interface/blob/master/ProjectReport499W18.pdf)
