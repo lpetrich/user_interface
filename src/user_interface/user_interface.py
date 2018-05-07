@@ -510,7 +510,7 @@ class UserInterfaceWidget(QWidget):
 		button_layout.addWidget(self.p2l_button)
 		button_layout.addWidget(self.l2l_button)
 		button_layout.addWidget(self.par_button)
-		button_layout.addWidget(self.con_button)
+		# button_layout.addWidget(self.con_button)
 		layout.addLayout(image_layout)
 		layout.addLayout(button_layout)        
 		return layout
@@ -923,24 +923,28 @@ class UserInterfaceWidget(QWidget):
 	def mousePressEventCam1(self, event):
 		if not self.static[0] and self.static_count_cam1 < self.static_total:
 			pos = self.s_vid1.mapFromGlobal(event.globalPos())
+			print "Target cam1: ", pos.x(), ", ", pos.y()
 			self.temp_cam1.append([pos.x(), pos.y()])
 			self.static_count_cam1 += 1
 		elif self.static[0] and not self.dynamic[0] and self.dynamic_count_cam1 < self.dynamic_total:
 			if self.stereo_vision and not self.static[1]:
 				return
 			pos = self.s_vid1.mapFromGlobal(event.globalPos())
+			print "Robot cam1: ", pos.x(), ", ", pos.y()
 			self.temp_cam1.append([pos.x(), pos.y()])
 			self.dynamic_count_cam1 += 1
 
 	def mousePressEventCam2(self, event):
 		if not self.static[1] and self.static_count_cam2 < self.static_total:
 			pos = self.s_vid2.mapFromGlobal(event.globalPos())
+			print "Target cam2: ", pos.x(), ", ", pos.y()
 			self.temp_cam2.append([pos.x(), pos.y()])
 			self.static_count_cam2 += 1
 		elif self.static[1] and not self.dynamic[1] and self.dynamic_count_cam2 < self.dynamic_total:
 			if self.stereo_vision and not self.static[0]:
 				return
 			pos = self.s_vid2.mapFromGlobal(event.globalPos())
+			print "Robot cam2: ", pos.x(), ", ", pos.y()
 			self.temp_cam2.append([pos.x(), pos.y()])
 			self.dynamic_count_cam2 += 1
 

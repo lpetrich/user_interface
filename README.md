@@ -1,16 +1,18 @@
 # ROS QT User Interface Package for Assistive Robotics
 
 ## Introduction
+ Substantial research has been published in Human Robot Interaction (HRI), tracking, and visual servoing over the past decade. We present an intuitive system based on the user-centered design for setting and executing visual tasks. Our HRI system expands on the work by Gridseth et al., incorporating visual task specification, registration based tracking and uncalibrated image- based visual servoing.
 
 ## Required Prerequisites:
 * [ROS Indigo](http://wiki.ros.org/indigo/Installation/Ubuntu)
 * [MTF](https://github.com/abhineet123/MTF)
 * [Qt](https://www.qt.io/download) 
-	- version 4.8.6 used
+	- version 4.8.6 used during development
 * [OpenCV](https://docs.opencv.org/trunk/d7/d9f/tutorial_linux_install.html) 
-	- version 2.4.8 used
+	- version 2.4.8 used during development
 * [Eigen](http://eigen.tuxfamily.org/index.php?title=Main_Page) 
-	- version 3.2.10 used
+	- version 3.2.10 used during development
+
 
 ## Required ROS Packages:
 * [mtf_bridge](https://github.com/lpetrich/mtf_bridge)
@@ -39,3 +41,4 @@ roslaunch user_interface stereo.launch
 
 ## Additional Resources:
 [Website](https://sites.google.com/ualberta.ca/49918-lpetrich/home)
+[PDF Report]
